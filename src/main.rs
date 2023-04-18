@@ -1,10 +1,14 @@
-use std::{path::PathBuf, process::{exit, Command}, fmt::format};
 use clap::Parser;
+use std::{
+    io,
+    path::{Path, PathBuf},
+    process::{exit, Command, Output},
+};
 
 #[derive(Parser)]
 struct Cli {
     source: PathBuf,
-    destination: PathBuf 
+    destination: PathBuf,
 }
 
 fn main() {
@@ -16,14 +20,37 @@ fn main() {
         exit(1);
     }
 
-    Command::new("cp").arg("-r").arg(source).arg(destination).output();
+    copy_dir(source.as_path(), destination.as_path()).expect("failed to copy dir");
 
     let project_name = destination.file_name().unwrap().to_str().unwrap();
-    let str_path = destination.display();
-    let replace_pattern = format!("s/template-project/{project_name}/g");
-    let cmake_path = format!("{str_path}/CMakeLists.txt");
-    let build_path = format!("{str_path}/build/build.sh"); 
-    Command::new("sed").arg("-i").arg(replace_pattern.clone()).arg(cmake_path).output();
-    Command::new("sed").arg("-i").arg(replace_pattern.clone()).arg(build_path).output();
 
+    find_and_replace(
+        "template-project",
+        project_name,
+        destination.join("CMakeLists.txt").as_path(),
+    )
+    .expect("failed to find and replace");
+
+    find_and_replace(
+        "template-project",
+        project_name,
+        destination.join("build").join("build.sh").as_path(),
+    )
+    .expect("failed to find and replace");
+}
+
+fn copy_dir(src: &Path, dst: &Path) -> io::Result<Output> {
+    Command::new("cp").arg("-r").arg(src).arg(dst).output()
+}
+
+fn find_and_replace(previous: &str, new: &str, path: &Path) -> io::Result<Output> {
+    Command::new("sed")
+        .arg("-i")
+        .arg(format!(
+            "s/{previous}/{new}/g",
+            previous = previous,
+            new = new
+        ))
+        .arg(path)
+        .output()
 }
