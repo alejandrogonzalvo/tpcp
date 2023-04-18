@@ -35,8 +35,10 @@ fn main() {
         exit(1);
     }
 
-    copy_dir(args.source.as_path(), args.destination.as_path())
-        .expect("failed to copy template project");
+    handle_output(
+        copy_dir(args.source.as_path(), args.destination.as_path()),
+        "failed to copy files template project",
+    );
 
     let project_name = match args.name {
         Some(name) => name,
@@ -49,19 +51,23 @@ fn main() {
             .to_string(),
     };
 
-    find_and_replace(
-        "template-project",
-        project_name.as_str(),
-        args.destination.join("CMakeLists.txt").as_path(),
-    )
-    .expect("failed to update cmake lists");
+    handle_output(
+        find_and_replace(
+            "template-project",
+            project_name.as_str(),
+            args.destination.join("CMakeLists.txt").as_path(),
+        ),
+        "failed to update CMakeLists.txt",
+    );
 
-    find_and_replace(
-        "template-project",
-        project_name.as_str(),
-        args.destination.join("build").join("build.sh").as_path(),
-    )
-    .expect("failed to update build script");
+    handle_output(
+        find_and_replace(
+            "template-project",
+            project_name.as_str(),
+            args.destination.join("build").join("build.sh").as_path(),
+        ),
+        "failed to update build.sh",
+    );
 }
 
 fn copy_dir(src: &Path, dst: &Path) -> io::Result<Output> {
@@ -78,4 +84,18 @@ fn find_and_replace(previous: &str, new: &str, path: &Path) -> io::Result<Output
         ))
         .arg(path)
         .output()
+}
+
+fn handle_output(output: io::Result<Output>, error_message: &str) {
+    match output {
+        Ok(output) if !output.status.success() => {
+            eprintln!("{} ({})", error_message, output.status);
+            exit(1);
+        }
+        Err(err) => {
+            eprintln!("{} ({})", error_message, err);
+            exit(1);
+        }
+        _ => (),
+    }
 }
