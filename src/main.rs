@@ -6,13 +6,14 @@ use std::{
 };
 
 #[derive(Parser)]
+#[command(author, version, about, long_about = None)]
 /// Easily create a new project from a template
 ///
 /// This tool will copy a template project, changing the project name (the destination folder name by default)
 struct TPCP {
-    /// Source folder, must exists
+    /// Source folder, must exist
     source: PathBuf,
-    /// Destination folder, must not exists
+    /// Destination folder, must not exist
     destination: PathBuf,
 
     #[arg(short, long, default_value = "template-project")]
@@ -28,16 +29,16 @@ fn main() {
     let args = TPCP::parse();
 
     if args.destination.exists() {
-        eprintln!("destion folder already exists");
+        eprintln!("destination folder already exists");
         exit(1);
     } else if !args.source.exists() {
-        eprintln!("source folder does not exists");
+        eprintln!("source folder does not exist");
         exit(1);
     }
 
     handle_output(
         copy_dir(args.source.as_path(), args.destination.as_path()),
-        "failed to copy files template project",
+        "failed to copy files from template project",
     );
 
     let project_name = match args.name {
