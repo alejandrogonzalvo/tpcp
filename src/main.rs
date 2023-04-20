@@ -1,29 +1,101 @@
-use std::{path::PathBuf, process::{exit, Command}, fmt::format};
 use clap::Parser;
+use std::{
+    io,
+    path::{Path, PathBuf},
+    process::{exit, Command, Output},
+};
 
 #[derive(Parser)]
-struct Cli {
+/// Easily create a new project from a template
+///
+/// This tool will copy a template project, changing the project name (the destination folder name by default)
+struct TPCP {
+    /// Source folder, must exists
     source: PathBuf,
-    destination: PathBuf 
+    /// Destination folder, must not exists
+    destination: PathBuf,
+
+    #[arg(short, long, default_value = "template-project")]
+    /// The placeholder of the project name on the template
+    placeholder: String,
+
+    #[arg(short, long)]
+    /// The new project name, defaults to the destination folder name
+    name: Option<String>,
 }
 
 fn main() {
-    let args = Cli::parse();
-    let source = &args.source;
-    let destination = &args.destination;
-    if destination.exists() {
-        println!("Destion folder already exists!");
+    let args = TPCP::parse();
+
+    if args.destination.exists() {
+        eprintln!("destion folder already exists");
+        exit(1);
+    } else if !args.source.exists() {
+        eprintln!("source folder does not exists");
         exit(1);
     }
 
-    Command::new("cp").arg("-r").arg(source).arg(destination).output();
+    handle_output(
+        copy_dir(args.source.as_path(), args.destination.as_path()),
+        "failed to copy files template project",
+    );
 
-    let project_name = destination.file_name().unwrap().to_str().unwrap();
-    let str_path = destination.display();
-    let replace_pattern = format!("s/template-project/{project_name}/g");
-    let cmake_path = format!("{str_path}/CMakeLists.txt");
-    let build_path = format!("{str_path}/build/build.sh"); 
-    Command::new("sed").arg("-i").arg(replace_pattern.clone()).arg(cmake_path).output();
-    Command::new("sed").arg("-i").arg(replace_pattern.clone()).arg(build_path).output();
+    let project_name = match args.name {
+        Some(name) => name,
+        None => args
+            .destination
+            .file_name()
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .to_string(),
+    };
 
+    handle_output(
+        find_and_replace(
+            "template-project",
+            project_name.as_str(),
+            args.destination.join("CMakeLists.txt").as_path(),
+        ),
+        "failed to update CMakeLists.txt",
+    );
+
+    handle_output(
+        find_and_replace(
+            "template-project",
+            project_name.as_str(),
+            args.destination.join("build").join("build.sh").as_path(),
+        ),
+        "failed to update build.sh",
+    );
+}
+
+fn copy_dir(src: &Path, dst: &Path) -> io::Result<Output> {
+    Command::new("cp").arg("-r").arg(src).arg(dst).output()
+}
+
+fn find_and_replace(previous: &str, new: &str, path: &Path) -> io::Result<Output> {
+    Command::new("sed")
+        .arg("-i")
+        .arg(format!(
+            "s/{previous}/{new}/g",
+            previous = previous,
+            new = new
+        ))
+        .arg(path)
+        .output()
+}
+
+fn handle_output(output: io::Result<Output>, error_message: &str) {
+    match output {
+        Ok(output) if !output.status.success() => {
+            eprintln!("{} ({})", error_message, output.status);
+            exit(1);
+        }
+        Err(err) => {
+            eprintln!("{} ({})", error_message, err);
+            exit(1);
+        }
+        _ => (),
+    }
 }
